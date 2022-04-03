@@ -53,6 +53,8 @@ struct Varyings
     float4 screenPos                : TEXCOORD9;
     float3 originWS                 : TEXCOORD10;
 
+    // float3 VSNormal                 : TEXCOORD11;
+
     float4 positionCS               : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -106,12 +108,12 @@ Varyings LitPassVertex(Attributes input)
     UNITY_TRANSFER_INSTANCE_ID(input, output);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+    VertexPositionInputs vertexInput = GetVertexPositionInputsThuy(input.positionOS.xyz);
 
     // normalWS and tangentWS already normalize.
     // this is required to avoid skewing the direction during interpolation
     // also required for per-vertex lighting and SH evaluation
-    VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
+    VertexNormalInputs normalInput = GetVertexNormalInputsThuy(input.normalOS, input.tangentOS);
 
     half3 viewDirWS = GetWorldSpaceViewDir(vertexInput.positionWS);
     half3 vertexLight = VertexLighting(vertexInput.positionWS, normalInput.normalWS);
@@ -152,9 +154,12 @@ Varyings LitPassVertex(Attributes input)
     output.screenPos = output.positionCS;
     output.originWS = TransformObjectToWorld(_NormalCorrectOrigin);
 
+    // output.VSNormal = normalize(mul((float3x3)UNITY_MATRIX_V, output.normalWS));
+
     return output;
 }
 
+float4 _CameraColorTexture_TexelSize;
 // Used in Standard (Physically Based) shader
 half4 LitPassFragment(Varyings input) : SV_Target
 {
@@ -195,6 +200,9 @@ half4 LitPassFragment(Varyings input) : SV_Target
         float2 screenPos = ComputeScreenPos(input.screenPos / input.screenPos.w).xy;
         half outlineFactor = SoftOutline(screenPos, lerp(_OutlineWidth, _OutlineWidth * 0.5, ramp * _OutlineLightAffects), _OutlineStrength, _OutlineSmoothness);
         color.rgb = lerp(color.rgb, shift(color.rgb, half3(0.0, _OutlineSaturation, lerp(_OutlineBrightness, saturate(_OutlineBrightness * 2.0), ramp * _OutlineLightAffects))), outlineFactor);
+        // color.rgb = SampleSceneDepth(screenPos);
+        // color.rgb = SampleSceneNormals(screenPos);
+        // -----
     }
 #endif
 

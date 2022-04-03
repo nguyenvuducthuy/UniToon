@@ -29,6 +29,7 @@ inline half maxcolor(half3 color)
 }
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 
 SamplerState my_linear_clamp_sampler;
 
@@ -73,6 +74,68 @@ float SoftOutline(float2 uv, half width, half strength, half power)
     half outlineRate = saturate(depthValue);
 
     return outlineRate;
+}
+
+// global addition transform
+float3 _pos;
+float3 _rot;
+float3 _scl;
+#include "Packages/com.sparx.unicin/Core/Shader/common.hlsl"
+VertexPositionInputs GetVertexPositionInputsThuy(float3 positionOS)
+{
+    // global addition transform
+    float3x3 rot = Euler3x3(_rot);
+    positionOS.xyz  = mul(rot,positionOS.xyz);
+    positionOS.xyz *= _scl.x <= 0 ? 1 : _scl;
+    positionOS.xyz += _pos;
+
+    VertexPositionInputs input;
+    input.positionWS = TransformObjectToWorld(positionOS);
+    input.positionVS = TransformWorldToView(input.positionWS);
+    input.positionCS = TransformWorldToHClip(input.positionWS);
+
+    float4 ndc = input.positionCS * 0.5f;
+    input.positionNDC.xy = float2(ndc.x, ndc.y * _ProjectionParams.x) + ndc.w;
+    input.positionNDC.zw = input.positionCS.zw;
+
+    return input;
+}
+
+VertexNormalInputs GetVertexNormalInputsThuy(float3 normalOS)
+{
+    // global addition transform
+    float3x3 rot = Euler3x3(_rot);
+    normalOS.xyz  = mul(rot,normalOS.xyz);
+    normalOS.xyz *= _scl.x <= 0 ? 1 : _scl;
+    normalOS.xyz += _pos;
+
+    VertexNormalInputs tbn;
+    tbn.tangentWS = real3(1.0, 0.0, 0.0);
+    tbn.bitangentWS = real3(0.0, 1.0, 0.0);
+    tbn.normalWS = TransformObjectToWorldNormal(normalOS);
+    return tbn;
+}
+
+VertexNormalInputs GetVertexNormalInputsThuy(float3 normalOS, float4 tangentOS)
+{
+    // global addition transform
+    float3x3 rot = Euler3x3(_rot);
+    normalOS.xyz  = mul(rot,normalOS.xyz);
+    normalOS.xyz *= _scl.x <= 0 ? 1 : _scl;
+    normalOS.xyz += _pos;
+
+    tangentOS.xyz  = mul(rot,tangentOS.xyz);
+    tangentOS.xyz *= _scl.x <= 0 ? 1 : _scl;
+    tangentOS.xyz += _pos;
+
+    VertexNormalInputs tbn;
+
+    // mikkts space compliant. only normalize when extracting normal at frag.
+    real sign = real(tangentOS.w) * GetOddNegativeScale();
+    tbn.normalWS = TransformObjectToWorldNormal(normalOS);
+    tbn.tangentWS = real3(TransformObjectToWorldDir(tangentOS.xyz));
+    tbn.bitangentWS = real3(cross(tbn.normalWS, float3(tbn.tangentWS))) * sign;
+    return tbn;
 }
 
 #endif
